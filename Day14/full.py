@@ -1,36 +1,66 @@
-inpt = "jzgqcdpd"
+hashKey = "jzgqcdpd"
 
-def knotHash(data):
-    data = [ord(c) for c in data] + [17, 31, 73, 47, 23]
-    l = range(256)
-    i = 0
-    skipSize = 0
-    for _ in xrange(64):
-        for d in data:
-            for j in xrange(d / 2):
-                l[(i + j) % len(l)], l[(i + (d - j - 1)) % len(l)] = l[(i + (d - j - 1)) % len(l)], l[(i + j) % len(l)]
-            i += d + skipSize
-            i = i % len(l)
-            skipSize += 1
+def hash(pos, length, codes):
+    codelen = len(codes)
+    if pos+length > codelen:
+        codes = codes+codes
+    newcodes = codes[:pos] + codes[pos:pos + length][::-1] + codes[pos + length:]
+    if len(newcodes) > codelen:
+        return newcodes[codelen:codelen + pos] + newcodes[pos:codelen]
+    else:
+        return newcodes
 
-    denseHash = []
-    for i in xrange(16):
-        x = 0
-        for j in xrange(16):
-            x = x ^ l[i*16 + j]
-        denseHash.append(x)
-    s = ""
-    for c in denseHash:
-        s += "{0:02x}".format(c)
-    return s
+def makehash(text):
+    newinputdata = [ord(x) for x in text] + [17, 31, 73, 47, 23]
+    skip = 0
+    pos = 0
+    mycodes = [ int(x) for x in list(range(256))]
+    for r in range(64):
+        for p in newinputdata:
+            mycodes = hash(pos, p, mycodes)
+            pos += skip + p
+            pos = pos % len(mycodes)
+            skip += 1
+
+    # dense hash
+    binhash = ''
+    for x in range(0, 256, 16):
+        k = mycodes[x] ^ mycodes[x+1]
+        for b in range(2, 16):
+            k = k ^ mycodes[x+b]
+        binhash += '{:08b}'.format(k)
+    return binhash
 
 grid = []
-for i in xrange(128):
-     kh = knotHash("%s-%d" % (inpt, i))
-     gridline = []
-     for c in kh:
-         gridline.extend([int(c) for c in "{0:04b}".format(int(c, 16))])
-     grid.append(gridline)
+for r in range(128):
+    grid.append(makehash(hashKey + '-{}'.format(r)))
 
-# part 1
-print sum(sum(gridline) for gridline in grid)
+squares = sum([x.count('1') for x in grid])
+
+# part 1 answer
+print (squares)
+
+visited = {}
+def findsquares (row, col):
+    print ('visiting {}, {}'.format(row,col))
+    visited['{},{}'.format(row, col)] = 1
+    for r in [-1, 0, 1]:
+        for c in [-1, 0, 1]:
+            if r + row < 0 or r + row > 127 or c + col < 0 or c + col > 127 or abs(c) + abs(r) != 1:
+                continue
+            elif grid[row + r][col + c] == '1' and visited.get('{},{}'.format(row + r, col + c), None) is None:
+                findsquares(row + r, col + c)
+
+myrow = 0
+mycol = grid[myrow].find('1', 0)
+regions = 0
+
+while myrow < 128:
+    if visited.get('{}, {}'.format(myrow, mycol), None) is None:
+        findsquares(myrow, mycol)
+        regions += 1
+        print(regions)
+    mycol = grid[myrow].find('1',mycol+1)
+    if mycol == -1:
+        myrow += 1
+        mycol = grid[myrow].find('1',0)
